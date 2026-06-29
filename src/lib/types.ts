@@ -47,7 +47,20 @@ export interface RoutineLog {
   completed: boolean
   locked: boolean
   note: string | null
+  photos?: string[]
   created_at: string
+}
+
+export interface TimelineItem {
+  id: string
+  at: string
+  date: string
+  type: 'routine' | 'diary' | 'focus' | 'impulse' | 'worry' | 'book' | 'book_note' | 'exercise' | 'relation' | 'money'
+  icon: string
+  title: string
+  description?: string
+  photos?: string[]
+  coin?: number
 }
 
 export interface Challenge {

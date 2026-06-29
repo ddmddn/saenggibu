@@ -27,7 +27,7 @@ export function useMoney(seasonId?: string) {
     isSelf?: boolean; isImpulse?: boolean; isSelfDev?: boolean
   }) => {
     if (!user || params.amount <= 0) return
-    await supabase.from('money_transactions').insert({
+    const { error } = await supabase.from('money_transactions').insert({
       user_id: user.id, date: today(),
       type: params.type, amount: params.amount,
       category: params.category, memo: params.memo ?? null,
@@ -35,10 +35,11 @@ export function useMoney(seasonId?: string) {
       is_impulse: params.isImpulse ?? false,
       is_self_development: params.isSelfDev ?? false,
     })
+    if (error) throw error
     // 자기계발 지출 시 코인 1% 적립
     if (params.type === '지출' && params.isSelfDev && seasonId) {
-      const coinAmt = Math.floor(params.amount / 100) * 0.01 * 100 // 지출액의 1%
-      if (coinAmt >= 0.01) {
+      const coinAmt = Math.floor(params.amount / 10000 * 100) / 100
+      if (coinAmt > 0) {
         await supabase.from('coin_transactions').insert({
           user_id: user.id, season_id: seasonId, date: today(),
           amount: coinAmt, source_type: '가계부',

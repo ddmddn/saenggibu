@@ -22,13 +22,14 @@ export function useExercise(seasonId?: string) {
 
   useEffect(() => { fetch() }, [fetch])
 
-  const add = async (type: string, durationMin: number) => {
+  const add = async (type: string, durationMin: number, photoUrl?: string) => {
     if (!user || !type.trim() || durationMin < 1) return
     const coin = durationMin >= 20 ? 5 : 0
-    const { data: log } = await supabase.from('exercise_logs').insert({
+    const { data: log, error } = await supabase.from('exercise_logs').insert({
       user_id: user.id, date: today(), type: type.trim(),
-      duration_minutes: durationMin, coin_earned: coin,
+      duration_minutes: durationMin, photo_url: photoUrl ?? null, coin_earned: coin,
     }).select().single()
+    if (error) throw error
 
     if (coin > 0 && seasonId && log) {
       await supabase.from('coin_transactions').insert({

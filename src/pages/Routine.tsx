@@ -1,56 +1,154 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Card from '../components/Card'
 import ProgressBar from '../components/ProgressBar'
 import Modal from '../components/Modal'
 import { useSeason } from '../hooks/useSeason'
 import { useRoutines } from '../hooks/useRoutines'
 import { useChallenges } from '../hooks/useChallenges'
-import type { ChallengeType } from '../lib/types'
+import { useAuth } from '../lib/auth'
+import { uploadPhoto } from '../lib/storage'
+import type { ChallengeType, Routine } from '../lib/types'
 
 const CHALLENGE_TYPES: ChallengeType[] = ['거리두기', '연결', '소비대기', '기타']
+const ROUTINE_IDEAS = [
+  '물 한 컵 마시기',
+  '책 10분 읽기',
+  '방 3분 정리',
+  '스쿼트 20개',
+  '영어 단어 5개',
+  '오늘 지출 확인',
+  '감정 한 줄 쓰기',
+  '잠들기 전 폰 멀리 두기',
+]
+
+function move<T>(items: T[], from: number, to: number) {
+  const copy = [...items]
+  const [picked] = copy.splice(from, 1)
+  copy.splice(to, 0, picked)
+  return copy
+}
 
 export default function Routine() {
+  const { user } = useAuth()
   const { season } = useSeason()
-  const { routines, logs, loading, toggleComplete, lockLog, addRoutine } = useRoutines(season?.id)
-  const { active, completed, failed, add: addChallenge, checkDay, fail, promoteToRoutine, remove: removeChallenge } = useChallenges(season?.id)
+  const {
+    routines,
+    logs,
+    loading,
+    error,
+    completeRoutine,
+    uncompleteRoutine,
+    lockLog,
+    addRoutine,
+    reorderRoutines,
+    removeRoutine,
+  } = useRoutines(season?.id)
+  const {
+    active,
+    completed,
+    failed,
+    add: addChallenge,
+    checkDay,
+    fail,
+    promoteToRoutine,
+    remove: removeChallenge,
+  } = useChallenges(season?.id)
 
-  // 루틴 추가 폼
   const [showAddRoutine, setShowAddRoutine] = useState(false)
   const [newTitle, setNewTitle] = useState('')
-  const [addPosition, setAddPosition] = useState<'before' | 'after'>('after')
+  const [routineError, setRoutineError] = useState<string | null>(null)
+  const [localOrder, setLocalOrder] = useState<Routine[] | null>(null)
+  const [sortMode, setSortMode] = useState(false)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const longPressRef = useRef<number | null>(null)
 
-  // 챌린지 추가 모달
+  const [completeTarget, setCompleteTarget] = useState<Routine | null>(null)
+  const [routineNote, setRoutineNote] = useState('')
+  const [routinePhoto, setRoutinePhoto] = useState<File | null>(null)
+  const [savingRoutineLog, setSavingRoutineLog] = useState(false)
+
   const [showChallengeModal, setShowChallengeModal] = useState(false)
   const [chType, setChType] = useState<ChallengeType>('거리두기')
   const [chTitle, setChTitle] = useState('')
   const [chDays, setChDays] = useState('7')
 
+  const ordered = localOrder ?? routines
   const seasonDay = season
     ? Math.floor((Date.now() - new Date(season.start_date).getTime()) / 86400000) + 1
     : 0
 
-  const handleAddRoutine = async () => {
-    if (!newTitle.trim()) return
-    const refIndex = addPosition === 'after' ? routines.length - 1 : 0
-    await addRoutine(newTitle.trim(), addPosition, refIndex)
-    setNewTitle('')
-    setShowAddRoutine(false)
+  const startLongPress = () => {
+    longPressRef.current = window.setTimeout(() => {
+      setSortMode(true)
+      setLocalOrder(routines)
+    }, 450)
+  }
+
+  const cancelLongPress = () => {
+    if (longPressRef.current) window.clearTimeout(longPressRef.current)
+  }
+
+  const saveOrder = async (items = ordered) => {
+    setRoutineError(null)
+    try {
+      await reorderRoutines(items.map((routine) => routine.id))
+      setLocalOrder(null)
+      setSortMode(false)
+    } catch (err) {
+      setRoutineError(err instanceof Error ? err.message : '순서를 저장하지 못했어요.')
+    }
+  }
+
+  const handleMove = (from: number, to: number) => {
+    if (to < 0 || to >= ordered.length) return
+    const next = move(ordered, from, to)
+    setLocalOrder(next)
+  }
+
+  const handleAddRoutine = async (title = newTitle) => {
+    if (!title.trim()) return
+    setRoutineError(null)
+    try {
+      await addRoutine(title)
+      setNewTitle('')
+      setShowAddRoutine(false)
+    } catch (err) {
+      setRoutineError(err instanceof Error ? err.message : '루틴을 추가하지 못했어요.')
+    }
+  }
+
+  const handleComplete = async () => {
+    if (!completeTarget || !user) return
+    setSavingRoutineLog(true)
+    setRoutineError(null)
+    try {
+      const photos = routinePhoto ? [await uploadPhoto(routinePhoto, user.id, 'routine-logs')] : []
+      await completeRoutine(completeTarget.id, { note: routineNote, photos })
+      setCompleteTarget(null)
+      setRoutineNote('')
+      setRoutinePhoto(null)
+    } catch (err) {
+      setRoutineError(err instanceof Error ? err.message : '루틴 완료를 저장하지 못했어요.')
+    } finally {
+      setSavingRoutineLog(false)
+    }
   }
 
   const handleAddChallenge = async () => {
     const days = parseInt(chDays)
-    if (!chTitle.trim() || isNaN(days) || days < 1) return
+    if (!chTitle.trim() || Number.isNaN(days) || days < 1) return
     await addChallenge({ type: chType, title: chTitle.trim(), durationDays: days })
     setChTitle('')
     setChDays('7')
     setShowChallengeModal(false)
   }
 
-  if (loading) return <div className="page"><p style={{ color: 'var(--text-muted)' }}>불러오는 중...</p></div>
+  if (loading) {
+    return <div className="page"><p style={{ color: 'var(--text-muted)' }}>불러오는 중...</p></div>
+  }
 
   return (
     <div className="page">
-      {/* 시즌 진행률 */}
       {season && (
         <Card>
           <div className="section-header">
@@ -61,66 +159,141 @@ export default function Routine() {
         </Card>
       )}
 
-      {/* 오늘의 루틴 체인 */}
       <Card>
         <div className="section-header">
           <span className="section-title">오늘의 루틴</span>
-          <span className="section-sub">{routines.filter(r => logs[r.id]?.completed).length}/{routines.length} 완료</span>
+          <span className="section-sub">{routines.filter((r) => logs[r.id]?.completed).length}/{routines.length} 완료</span>
         </div>
 
+        {(error || routineError) && <p className="form-error">{error ?? routineError}</p>}
+
         {routines.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: 14, padding: '8px 0' }}>
-            아래 버튼으로 첫 루틴을 추가해보세요!
-          </p>
+          <p className="empty-msg">아래 버튼으로 첫 루틴을 추가해보세요.</p>
         ) : (
-          <ul className="routine-chain">
-            {routines.map((r, i) => {
-              const log = logs[r.id]
-              const done = log?.completed ?? false
-              const locked = log?.locked ?? false
-              return (
-                <li key={r.id} className={`chain-item${done ? ' done' : ''}`}>
-                  <div className="chain-line-wrap">
-                    <div className={`chain-dot${done ? ' filled' : ''}`} />
-                    {i < routines.length - 1 && <div className="chain-line" />}
-                  </div>
-                  <div className="chain-content">
-                    <div className="chain-title-row"
-                              onClick={() => !locked && toggleComplete(r.id)}
-                      style={{ cursor: locked ? 'default' : 'pointer' }}>
-                      <span className="chain-title">{r.title}</span>
-                      <span className="chain-streak">🔥{r.streak_current}일</span>
+          <>
+            {sortMode && (
+              <div className="sort-mode-bar">
+                <span>순서 조정 중</span>
+                <button className="text-btn" onClick={() => saveOrder()}>저장</button>
+                <button className="text-btn" onClick={() => { setSortMode(false); setLocalOrder(null) }}>취소</button>
+              </div>
+            )}
+
+            <ul className="routine-chain">
+              {ordered.map((routine, index) => {
+                const log = logs[routine.id]
+                const done = log?.completed ?? false
+                const locked = log?.locked ?? false
+
+                return (
+                  <li
+                    key={routine.id}
+                    className={`chain-item${done ? ' done' : ''}${sortMode ? ' sorting' : ''}`}
+                    draggable={sortMode}
+                    onDragStart={() => setDragIndex(index)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => {
+                      if (dragIndex === null || dragIndex === index) return
+                      handleMove(dragIndex, index)
+                      setDragIndex(null)
+                    }}
+                    onPointerDown={startLongPress}
+                    onPointerUp={cancelLongPress}
+                    onPointerLeave={cancelLongPress}
+                  >
+                    <div className="chain-line-wrap">
+                      <div className={`chain-dot${done ? ' filled' : ''}`} />
+                      {index < ordered.length - 1 && <div className="chain-line" />}
                     </div>
-                    {done && !locked && (
-                      <button className="lock-btn" onClick={() => lockLog(r.id)}>확정하기 🔒</button>
-                    )}
-                    {locked && <span className="locked-tag">확정됨 ✓</span>}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+                    <div className="chain-content">
+                      <div className="chain-title-row">
+                        <button
+                          className="routine-check-button"
+                          onClick={() => {
+                            if (sortMode || locked) return
+                            if (done) {
+                              uncompleteRoutine(routine.id).catch((err) => setRoutineError(err.message))
+                            } else {
+                              setCompleteTarget(routine)
+                            }
+                          }}
+                        >
+                          {done ? '✓' : ''}
+                        </button>
+                        <span className="chain-title">{routine.title}</span>
+                        <span className="chain-streak">🔥{routine.streak_current}일</span>
+                      </div>
+
+                      {log?.note && <div className="routine-note-preview">{log.note}</div>}
+                      {log?.photos && log.photos.length > 0 && (
+                        <div className="photo-strip">
+                          {log.photos.map((photo) => <img key={photo} src={photo} alt="" />)}
+                        </div>
+                      )}
+
+                      {sortMode ? (
+                        <div className="sort-controls">
+                          <button className="text-btn" onClick={() => handleMove(index, index - 1)}>위로</button>
+                          <button className="text-btn" onClick={() => handleMove(index, index + 1)}>아래로</button>
+                          <button
+                            className="text-btn danger"
+                            onClick={() => {
+                              if (confirm('이 루틴을 삭제할까요?')) removeRoutine(routine.id).catch((err) => setRoutineError(err.message))
+                            }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {done && !locked && (
+                            <button className="lock-btn" onClick={() => lockLog(routine.id).catch((err) => setRoutineError(err.message))}>확정하기</button>
+                          )}
+                          {locked && <span className="locked-tag">확정됨</span>}
+                        </>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          </>
         )}
 
         {!showAddRoutine ? (
           <button className="add-routine-btn" onClick={() => setShowAddRoutine(true)}>+ 루틴 추가하기</button>
         ) : (
           <div className="add-form">
-            <div className="add-pos-chips">
-              <button className={`chip${addPosition === 'after' ? ' active' : ''}`} onClick={() => setAddPosition('after')}>맨 뒤에</button>
-              <button className={`chip${addPosition === 'before' ? ' active' : ''}`} onClick={() => setAddPosition('before')}>맨 앞에</button>
-            </div>
-            <input className="focus-desc-input" placeholder="루틴 이름..." value={newTitle}
-              onChange={e => setNewTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddRoutine()} autoFocus />
+            <input
+              className="focus-desc-input"
+              placeholder="루틴 이름..."
+              value={newTitle}
+              onChange={(event) => setNewTitle(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && handleAddRoutine()}
+              autoFocus
+            />
             <div className="add-form-btns">
-              <button className="login-btn" onClick={handleAddRoutine}>추가</button>
+              <button className="login-btn" onClick={() => handleAddRoutine()}>추가</button>
               <button className="text-btn" onClick={() => { setShowAddRoutine(false); setNewTitle('') }}>취소</button>
             </div>
           </div>
         )}
       </Card>
 
-      {/* 진행중인 챌린지 */}
+      <Card>
+        <div className="section-header">
+          <span className="section-title">루틴 아이디어</span>
+          <span className="section-sub">눌러서 바로 추가</span>
+        </div>
+        <div className="idea-grid">
+          {ROUTINE_IDEAS.map((idea) => (
+            <button key={idea} className="idea-chip" onClick={() => handleAddRoutine(idea)}>
+              {idea}
+            </button>
+          ))}
+        </div>
+      </Card>
+
       <Card>
         <div className="section-header">
           <span className="section-title">챌린지</span>
@@ -128,100 +301,84 @@ export default function Routine() {
         </div>
 
         {active.length === 0 && completed.length === 0 && failed.length === 0 ? (
-          <p className="empty-msg">챌린지를 추가해보세요! 완료 시 +30🪙</p>
+          <p className="empty-msg">챌린지를 추가해보세요. 완료 시 +30코인</p>
         ) : (
           <>
-            {active.map(ch => {
-              const daysLeft = ch.duration_days - ch.progress_count
+            {active.map((challenge) => {
+              const daysLeft = challenge.duration_days - challenge.progress_count
               return (
-                <div key={ch.id} className="challenge-item">
+                <div key={challenge.id} className="challenge-item">
                   <div className="section-header" style={{ marginBottom: 6 }}>
                     <div>
-                      <span className="challenge-title" style={{ marginBottom: 0 }}>{ch.title}</span>
-                      <span className="challenge-badge" style={{ marginLeft: 6 }}>{ch.type}</span>
+                      <span className="challenge-title" style={{ marginBottom: 0 }}>{challenge.title}</span>
+                      <span className="challenge-badge" style={{ marginLeft: 6 }}>{challenge.type}</span>
                     </div>
-                    <button className="icon-btn" onClick={() => { if (confirm('챌린지를 삭제할까요?')) removeChallenge(ch.id) }}>🗑️</button>
+                    <button className="icon-btn" onClick={() => removeChallenge(challenge.id)}>삭제</button>
                   </div>
                   <div className="challenge-progress-row">
-                    <ProgressBar value={(ch.progress_count / ch.duration_days) * 100} color="var(--positive)" />
-                    <span className="challenge-count">{ch.progress_count}/{ch.duration_days}일</span>
+                    <ProgressBar value={(challenge.progress_count / challenge.duration_days) * 100} color="var(--positive)" />
+                    <span className="challenge-count">{challenge.progress_count}/{challenge.duration_days}일</span>
                   </div>
                   {daysLeft <= 3 && daysLeft > 0 && (
-                    <div className="promote-hint">🎉 {daysLeft}일 남음 — 거의 다 왔어요!</div>
+                    <div className="promote-hint">{daysLeft}일 남음</div>
                   )}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    <button className="login-btn" style={{ flex: 1, padding: '8px 0', fontSize: 13 }}
-                      onClick={() => checkDay(ch.id)}>오늘 완료 ✓</button>
-                    {ch.status === 'completed' || ch.progress_count >= ch.duration_days ? (
-                      !ch.promoted_to_routine && season && (
-                        <button className="text-btn" style={{ fontSize: 13 }}
-                          onClick={() => promoteToRoutine(ch.id, season.id)}>루틴으로 승격 →</button>
-                      )
-                    ) : (
-                      <button className="text-btn" style={{ color: 'var(--negative)', fontSize: 13 }}
-                        onClick={() => { if (confirm('챌린지를 실패 처리할까요?')) fail(ch.id) }}>포기</button>
-                    )}
+                  <div className="row-actions">
+                    <button className="login-btn compact" onClick={() => checkDay(challenge.id)}>오늘 완료</button>
+                    <button className="text-btn danger" onClick={() => fail(challenge.id)}>포기</button>
                   </div>
                 </div>
               )
             })}
 
-            {completed.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>완료된 챌린지</div>
-                {completed.map(ch => (
-                  <div key={ch.id} className="challenge-item" style={{ opacity: .7 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 14, color: 'var(--text-strong)' }}>✓ {ch.title}</span>
-                      <span style={{ fontSize: 12, color: 'var(--positive)' }}>+30🪙</span>
-                    </div>
-                    {!ch.promoted_to_routine && season && (
-                      <button className="text-btn" style={{ fontSize: 12, marginTop: 4 }}
-                        onClick={() => promoteToRoutine(ch.id, season.id)}>루틴으로 승격 →</button>
-                    )}
-                    {ch.promoted_to_routine && (
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>루틴 승격됨</span>
-                    )}
-                  </div>
-                ))}
+            {completed.map((challenge) => (
+              <div key={challenge.id} className="challenge-item muted">
+                <div className="section-header">
+                  <span className="challenge-title">완료: {challenge.title}</span>
+                  {!challenge.promoted_to_routine && season && (
+                    <button className="text-btn" onClick={() => promoteToRoutine(challenge.id, season.id)}>루틴으로 승격</button>
+                  )}
+                </div>
               </div>
-            )}
-
-            {failed.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>실패한 챌린지</div>
-                {failed.map(ch => (
-                  <div key={ch.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: .5, marginBottom: 6 }}>
-                    <span style={{ fontSize: 14 }}>{ch.title}</span>
-                    <button className="icon-btn" onClick={() => removeChallenge(ch.id)}>🗑️</button>
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </>
         )}
       </Card>
 
-      {/* 챌린지 추가 모달 */}
+      {completeTarget && (
+        <Modal title={`${completeTarget.title} 완료`} onClose={() => setCompleteTarget(null)}>
+          <textarea
+            className="modal-textarea"
+            placeholder="메모를 남길까요? (선택)"
+            value={routineNote}
+            onChange={(event) => setRoutineNote(event.target.value)}
+          />
+          <label className="file-picker">
+            <span>{routinePhoto ? routinePhoto.name : '사진 추가 (선택)'}</span>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => setRoutinePhoto(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button className="login-btn" disabled={savingRoutineLog} onClick={handleComplete}>
+            {savingRoutineLog ? '저장 중...' : '완료 저장'}
+          </button>
+        </Modal>
+      )}
+
       {showChallengeModal && (
-        <Modal title="챌린지 추가 (+30🪙)" onClose={() => setShowChallengeModal(false)}>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>종류</div>
+        <Modal title="챌린지 추가" onClose={() => setShowChallengeModal(false)}>
           <div className="focus-cat-chips" style={{ marginBottom: 14 }}>
-            {CHALLENGE_TYPES.map(t => (
-              <button key={t} className={`chip${chType === t ? ' active' : ''}`} onClick={() => setChType(t)}>{t}</button>
+            {CHALLENGE_TYPES.map((type) => (
+              <button key={type} className={`chip${chType === type ? ' active' : ''}`} onClick={() => setChType(type)}>
+                {type}
+              </button>
             ))}
           </div>
-          <input className="focus-desc-input" placeholder="챌린지 이름 (예: 인스타 끊기 7일)"
-            value={chTitle} onChange={e => setChTitle(e.target.value)} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <input className="focus-desc-input" type="number" placeholder="목표 일수" style={{ flex: 1 }}
-              value={chDays} onChange={e => setChDays(e.target.value)} />
-            <span style={{ fontSize: 14, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>일 챌린지</span>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 14px' }}>
-            매일 "오늘 완료" 버튼으로 진행 체크 → 완료 시 +30🪙
-          </p>
-          <button className="login-btn" onClick={handleAddChallenge}>추가</button>
+          <input className="focus-desc-input" placeholder="챌린지 이름" value={chTitle} onChange={(event) => setChTitle(event.target.value)} />
+          <input className="focus-desc-input" style={{ marginTop: 8 }} type="number" placeholder="목표 일수" value={chDays} onChange={(event) => setChDays(event.target.value)} />
+          <button className="login-btn" style={{ marginTop: 12 }} onClick={handleAddChallenge}>추가</button>
         </Modal>
       )}
     </div>

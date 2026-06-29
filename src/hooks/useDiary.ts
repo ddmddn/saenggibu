@@ -22,13 +22,19 @@ export function useDiary(date?: string) {
 
   useEffect(() => { fetch() }, [fetch])
 
-  const add = async (text: string, timeSlot?: DiaryTimeSlot, tags: string[] = []) => {
+  const add = async (
+    text: string,
+    timeSlot?: DiaryTimeSlot,
+    tags: string[] = [],
+    photos: string[] = [],
+  ) => {
     if (!user || !text.trim()) return
-    await supabase.from('diary_entries').insert({
+    const { error } = await supabase.from('diary_entries').insert({
       user_id: user.id, date: date ?? today(),
       text: text.trim(), time_slot: timeSlot ?? null,
-      tags, source_type: 'manual',
+      tags, photos, source_type: 'manual',
     })
+    if (error) throw error
     fetch()
   }
 

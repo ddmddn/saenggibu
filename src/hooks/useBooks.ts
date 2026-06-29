@@ -21,17 +21,23 @@ export function useBooks(seasonId?: string) {
 
   useEffect(() => { fetch() }, [fetch])
 
-  const add = async (title: string, author?: string) => {
+  const add = async (title: string, author?: string, coverPhotoUrl?: string) => {
     if (!user || !title.trim()) return
-    await supabase.from('books').insert({
-      user_id: user.id, title: title.trim(), author: author?.trim() ?? null, status: 'reading',
+    const { error } = await supabase.from('books').insert({
+      user_id: user.id,
+      title: title.trim(),
+      author: author?.trim() ?? null,
+      cover_photo_url: coverPhotoUrl ?? null,
+      status: 'reading',
     })
+    if (error) throw error
     fetch()
   }
 
   const complete = async (id: string) => {
     if (!user) return
-    await supabase.from('books').update({ status: '완독', completed_date: today() }).eq('id', id)
+    const { error } = await supabase.from('books').update({ status: '완독', completed_date: today() }).eq('id', id)
+    if (error) throw error
     // 완독 코인 +20
     if (seasonId) {
       await supabase.from('coin_transactions').insert({

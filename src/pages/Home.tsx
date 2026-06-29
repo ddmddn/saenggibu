@@ -54,22 +54,22 @@ export default function Home() {
               <div className="focus-category">{target.category}</div>
               <div className="focus-desc">{target.description}</div>
               {target.changed_count > 0 && (
-                <div style={{ fontSize: 11, color: '#c4b5fd', marginTop: 2 }}>변경 {target.changed_count}회</div>
+                <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 2 }}>변경 {target.changed_count}회</div>
               )}
             </div>
             {target.locked
               ? <span className="lock-badge">🔒</span>
-              : <button className="lock-btn" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.3)', background: 'rgba(255,255,255,.1)' }} onClick={lock}>잠금</button>
+              : <button className="lock-btn" onClick={lock}>잠금</button>
             }
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
             {!target.locked && (
-              <button className="text-btn" style={{ color: '#c4b5fd', fontSize: 12 }} onClick={() => setShowFocusForm(true)}>수정</button>
+              <button className="text-btn" style={{ fontSize: 12 }} onClick={() => setShowFocusForm(true)}>수정</button>
             )}
             {target.self_rating ? (
-              <span style={{ fontSize: 12, color: '#c4b5fd' }}>오늘 평가: {'⭐'.repeat(target.self_rating)}</span>
+              <span style={{ fontSize: 12, color: 'var(--accent)' }}>오늘 평가: {'⭐'.repeat(target.self_rating)}</span>
             ) : (
-              <button className="text-btn" style={{ color: '#c4b5fd', fontSize: 12 }} onClick={() => setShowRateModal(true)}>
+              <button className="text-btn" style={{ fontSize: 12 }} onClick={() => setShowRateModal(true)}>
                 오늘 자가평가 →
               </button>
             )}
@@ -83,24 +83,21 @@ export default function Home() {
               <div className="focus-cat-chips">
                 {CATEGORIES.map(c => (
                   <button key={c} className={`chip${focusCat === c ? ' active' : ''}`}
-                    style={focusCat === c ? { background: 'rgba(255,255,255,.2)', borderColor: '#fff', color: '#fff' } : { background: 'rgba(255,255,255,.08)', borderColor: 'rgba(255,255,255,.2)', color: '#ddd6fe' }}
                     onClick={() => setFocusCat(c)}>{c}</button>
                 ))}
               </div>
               <input
                 className="focus-desc-input"
-                style={{ background: 'rgba(255,255,255,.1)', borderColor: 'rgba(255,255,255,.2)', color: '#fff' }}
                 placeholder="오늘 집중할 것을 한 줄로..."
                 value={focusDesc}
                 onChange={e => setFocusDesc(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveFocus()}
                 autoFocus
               />
-              <button className="login-btn" style={{ marginTop: 8, background: 'rgba(255,255,255,.2)' }} onClick={saveFocus}>설정</button>
+              <button className="login-btn" style={{ marginTop: 8 }} onClick={saveFocus}>설정</button>
             </div>
           ) : (
             <button className="add-routine-btn"
-              style={{ borderColor: 'rgba(255,255,255,.3)', color: '#ddd6fe' }}
               onClick={() => setShowFocusForm(true)}>
               + 오늘의 집중대상 설정하기
             </button>
