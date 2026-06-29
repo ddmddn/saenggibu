@@ -27,7 +27,7 @@ export function useRoutines(seasonId: string | undefined, date = today()) {
         .select('*')
         .eq('user_id', user.id)
         .eq('season_id', seasonId)
-        .eq('status', 'active')
+        .neq('status', 'dropped')
         .order('order_index', { ascending: true }),
       supabase
         .from('routine_logs')
@@ -162,14 +162,20 @@ export function useRoutines(seasonId: string | undefined, date = today()) {
     const nextIndex =
       routines.length === 0 ? 0 : Math.max(...routines.map((routine) => routine.order_index)) + 1
 
-    const { error: insertError } = await supabase.from('routines').insert({
-      user_id: user.id,
-      season_id: seasonId,
-      title: cleanTitle,
-      order_index: nextIndex,
-    })
+    const { data: created, error: insertError } = await supabase
+      .from('routines')
+      .insert({
+        user_id: user.id,
+        season_id: seasonId,
+        title: cleanTitle,
+        order_index: nextIndex,
+        status: 'active',
+      })
+      .select()
+      .single()
 
     if (insertError) throw insertError
+    if (!created) throw new Error('루틴 저장 결과를 확인하지 못했어요.')
     await fetchAll()
   }
 
