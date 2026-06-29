@@ -25,7 +25,7 @@ export default function Record() {
   const { logs: impulseLogs, add: addImpulse } = useImpulse(season?.id)
   const { sessions, running, elapsed, activeTag, start: startFocus, stop: stopFocus, todayTotal, todayProd } = useFocusSessions(season?.id)
   const { entries: diaryEntries, add: addDiary, remove: removeDiary } = useDiary()
-  const { books, add: addBook, complete: completeBook, remove: removeBook, addNote, getNotes } = useBooks(season?.id)
+  const { books, add: addBook, complete: completeBook, remove: removeBook, addNote } = useBooks(season?.id)
   const { logs: exerciseLogs, add: addExercise, remove: removeExercise } = useExercise(season?.id)
 
   const [sub, setSub] = useState<SubTab>('timeline')

@@ -9,19 +9,6 @@ import type { MoneyType } from '../lib/types'
 
 type SubTab = 'weekly' | 'money' | 'summary'
 
-function ScoreBar({ score, color = 'var(--accent)' }: { score: number; color?: string }) {
-  return (
-    <div className="score-bar-bg">
-      <div className="score-bar-fill" style={{ width: `${score}%`, background: color }} />
-    </div>
-  )
-}
-function scoreColor(s: number) {
-  if (s >= 80) return 'var(--positive)'
-  if (s >= 50) return 'var(--accent)'
-  return 'var(--negative)'
-}
-
 export default function Report() {
   const { user, signOut } = useAuth()
   const { season } = useSeason()

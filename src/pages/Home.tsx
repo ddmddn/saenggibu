@@ -131,7 +131,7 @@ export default function Home() {
               const done = log?.completed ?? false
               return (
                 <li key={r.id} className={`routine-mini-item${done ? ' done' : ''}`}
-                  onClick={() => !log?.locked && toggleComplete(r.id, season?.coin_rate ?? 100)}
+                  onClick={() => !log?.locked && toggleComplete(r.id)}
                   style={{ cursor: log?.locked ? 'default' : 'pointer' }}>
                   <span className="routine-check">{done ? '✅' : '⬜'}</span>
                   <span className="routine-title">{r.title}</span>

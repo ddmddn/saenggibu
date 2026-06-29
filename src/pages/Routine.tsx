@@ -86,7 +86,7 @@ export default function Routine() {
                   </div>
                   <div className="chain-content">
                     <div className="chain-title-row"
-                      onClick={() => !locked && toggleComplete(r.id, season?.coin_rate ?? 100)}
+                              onClick={() => !locked && toggleComplete(r.id)}
                       style={{ cursor: locked ? 'default' : 'pointer' }}>
                       <span className="chain-title">{r.title}</span>
                       <span className="chain-streak">🔥{r.streak_current}일</span>

@@ -1,10 +1,11 @@
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 interface Props {
   children: ReactNode
-  className?: string
+    className?: string
+    onClick?: () => void
 }
 
-export default function Card({ children, className = '' }: Props) {
-  return <div className={`card ${className}`}>{children}</div>
+export default function Card({ children, className = '', onClick }: Props) {
+    return <div className={`card ${className}`} onClick={onClick}>{children}</div>
 }

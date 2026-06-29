@@ -26,7 +26,7 @@ export function useRoutines(seasonId: string | undefined) {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const toggleComplete = async (routineId: string, coinRate: number) => {
+   const toggleComplete = async (routineId: string) => {
     const existing = logs[routineId]
     if (existing?.locked) return
 
